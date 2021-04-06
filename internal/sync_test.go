@@ -15,10 +15,12 @@
 // Package internal ...
 package internal
 
+/*
 import (
 	"encoding/json"
 	"log"
 )
+
 
 // toJSON return a json pretty of the stc
 func toJSON(stc interface{}) []byte {
@@ -29,7 +31,6 @@ func toJSON(stc interface{}) []byte {
 	return JSON
 }
 
-/*
 func Test_getGroupOperations(t *testing.T) {
 	type args struct {
 		awsGroups    []*aws.Group
