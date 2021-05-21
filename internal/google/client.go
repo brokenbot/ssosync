@@ -28,7 +28,7 @@ type Client interface {
 	GetUsers(string) ([]*admin.User, error)
 	GetDeletedUsers() ([]*admin.User, error)
 	GetGroups(string) ([]*admin.Group, error)
-	GetGroupMembers(*admin.Group) ([]*admin.Member, error)
+	GetGroupMembers(*admin.Group, bool) ([]*admin.Member, error)
 }
 
 type client struct {
@@ -73,9 +73,9 @@ func (c *client) GetDeletedUsers() ([]*admin.User, error) {
 }
 
 // GetGroupMembers will get the members of the group specified
-func (c *client) GetGroupMembers(g *admin.Group) ([]*admin.Member, error) {
+func (c *client) GetGroupMembers(g *admin.Group, idm bool) ([]*admin.Member, error) {
 	m := make([]*admin.Member, 0)
-	err := c.service.Members.List(g.Id).Pages(context.TODO(), func(members *admin.Members) error {
+	err := c.service.Members.List(g.Id).IncludeDerivedMembership(idm).Pages(context.TODO(), func(members *admin.Members) error {
 		m = append(m, members.Members...)
 		return nil
 	})

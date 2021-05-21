@@ -52,7 +52,7 @@ func New(cfg *config.Config, a aws.Client, g google.Client) SyncGSuite {
 
 // pull a list of users and groups from AWS,
 
-func (s *syncGSuite) planSync(awsUsers map[string]*aws.User, awsGroups map[string]*aws.Group, googleUsers map[string]*admin.User, googleGroups map[string][]string) (syncPlan map[string][][]string, err error) {
+func (s *syncGSuite) planSync(awsUsers map[string]*aws.User, awsGroups map[string]*aws.Group, googleUsers map[string]*admin.User, googleGroups map[string][]string, invalidGoogleUsers []string) (syncPlan map[string][][]string, err error) {
 
 	log.Info("creating user and group sync plans")
 	syncPlan = make(map[string][][]string)
@@ -60,7 +60,7 @@ func (s *syncGSuite) planSync(awsUsers map[string]*aws.User, awsGroups map[strin
 	if err != nil {
 		return nil, err
 	}
-	syncPlan["groups"], err = s.getGroupChanges(awsGroups, googleGroups)
+	syncPlan["groups"], err = s.getGroupChanges(awsGroups, googleGroups, invalidGoogleUsers)
 	if err != nil {
 		return nil, err
 	}
@@ -84,13 +84,13 @@ func (s *syncGSuite) Sync() (err error) {
 	if err != nil {
 		return err
 	}
-	googleUsers, err := s.getFilteredGoogleUsers(googleGroups)
+	googleUsers, invalidGoogleUsers, err := s.getFilteredGoogleUsers(googleGroups)
 	if err != nil {
 		return err
 	}
 	//googleDeleteUsers, err := s.google.GetDeletedUsers()
 
-	syncPlan, err := s.planSync(awsUsers, awsGroups, googleUsers, googleGroups)
+	syncPlan, err := s.planSync(awsUsers, awsGroups, googleUsers, googleGroups, invalidGoogleUsers)
 	if err != nil {
 		return err
 	}
@@ -261,7 +261,7 @@ func (s *syncGSuite) getAwsGroups(awsUsers map[string]*aws.User) (awsGroups map[
 
 }
 
-func (s *syncGSuite) getGroupChanges(awsGroups map[string]*aws.Group, googleGroups map[string][]string) (groupPlan [][]string, err error) {
+func (s *syncGSuite) getGroupChanges(awsGroups map[string]*aws.Group, googleGroups map[string][]string, invalidGoogleUsers []string) (groupPlan [][]string, err error) {
 
 	deleteGroups := make(map[string]string)
 	compareGroups := make(map[string]string)
@@ -288,6 +288,10 @@ func (s *syncGSuite) getGroupChanges(awsGroups map[string]*aws.Group, googleGrou
 			}
 
 			for _, a := range addMembers {
+				if s.ignoreUser(a) || inList(a, invalidGoogleUsers) {
+					log.WithField("user", a).Warn("skipping user, either ingnored or invalid")
+					continue
+				}
 				groupPlan = append(groupPlan, []string{"add", googleGroup, a})
 			}
 
@@ -348,7 +352,7 @@ func (s *syncGSuite) getFilteredGoogleGroups() (map[string][]string, error) {
 			continue
 		}
 
-		members, err := s.google.GetGroupMembers(g)
+		members, err := s.google.GetGroupMembers(g, true)
 		if err != nil {
 			return nil, err
 		}
@@ -356,7 +360,10 @@ func (s *syncGSuite) getFilteredGoogleGroups() (map[string][]string, error) {
 		memberEmails := make([]string, 0)
 		for _, m := range members {
 			if m.Type == "Group" {
-				log.WithField("id", m.Email).Warn("skipping, nested groups are not supported")
+				log.WithField("id", m.Email).Warn("skipping, invalid user")
+				continue
+			}
+			if s.ignoreUser(m.Email) {
 				continue
 			}
 			memberEmails = append(memberEmails, m.Email)
@@ -371,11 +378,12 @@ func (s *syncGSuite) getFilteredGoogleGroups() (map[string][]string, error) {
 
 }
 
-func (s *syncGSuite) getFilteredGoogleUsers(groupsMembers map[string][]string) (map[string]*admin.User, error) {
+func (s *syncGSuite) getFilteredGoogleUsers(groupsMembers map[string][]string) (filteredUsers map[string]*admin.User, invalidUsers []string, err error) {
 
 	log.Info("Retrieving list of Google Users")
 
-	filteredUsers := make(map[string]*admin.User)
+	filteredUsers = make(map[string]*admin.User)
+	invalidUsers = make([]string, 0)
 
 	if s.cfg.SyncMethod == config.DefaultSyncMethod {
 		log.Info("Using default sync method to get users: ", s.cfg.SyncMethod)
@@ -395,19 +403,20 @@ func (s *syncGSuite) getFilteredGoogleUsers(groupsMembers map[string][]string) (
 
 				user, err := s.google.GetUsers(q)
 				if err != nil {
-					return nil, err
+					return nil, nil, err
 				}
 				if len(user) >= 1 {
 					filteredUsers[m] = user[0]
 				} else {
-					log.WithField("id", m).Warn("invalid user, could be nested group")
+					log.WithField("id", m).Warn("invalid user")
+					invalidUsers = append(invalidUsers, m)
 				}
 			}
 		}
 	} else {
 		users, err := s.google.GetUsers(s.cfg.UserMatch)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, u := range users {
 			if s.ignoreUser(u.PrimaryEmail) {
@@ -419,7 +428,7 @@ func (s *syncGSuite) getFilteredGoogleUsers(groupsMembers map[string][]string) (
 
 	log.Debugf("%+v\n", filteredUsers)
 
-	return filteredUsers, nil
+	return filteredUsers, invalidUsers, nil
 
 }
 
@@ -479,6 +488,16 @@ func (s *syncGSuite) ignoreUser(name string) bool {
 	for _, u := range s.cfg.IgnoreUsers {
 		if u == name {
 			log.WithField("user", name).Info("in ignore user list")
+			return true
+		}
+	}
+
+	return false
+}
+
+func inList (value string, list []string) bool {
+	for _, i := range list {
+		if i == value {
 			return true
 		}
 	}
