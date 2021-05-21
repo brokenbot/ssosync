@@ -299,6 +299,10 @@ func (s *syncGSuite) getGroupChanges(awsGroups map[string]*aws.Group, googleGrou
 
 		groupPlan = append(groupPlan, []string{"create", googleGroup})
 		for _, m := range members {
+			if s.ignoreUser(m) || inList(m, invalidGoogleUsers) {
+				log.WithField("user", m).Warn("skipping user, either ingnored or invalid")
+				continue
+			}
 			groupPlan = append(groupPlan, []string{"add", googleGroup, m})
 		}
 
@@ -359,7 +363,7 @@ func (s *syncGSuite) getFilteredGoogleGroups() (map[string][]string, error) {
 		memberEmails := make([]string, 0)
 		for _, m := range members {
 			if m.Type == "Group" {
-				log.WithField("id", m.Email).Warn("skipping, invalid user")
+				log.WithField("id", m.Email).Warn("skipping, nested groups are not supported")
 				continue
 			}
 			if s.ignoreUser(m.Email) {
@@ -393,6 +397,7 @@ func (s *syncGSuite) getFilteredGoogleUsers(groupsMembers map[string][]string) (
 					log.WithField("id", m).Debug("skipping, user already in retreived")
 					continue
 				}
+
 				if s.ignoreUser(m) {
 					log.WithField("id", m).Debug("ignoring user")
 					continue
