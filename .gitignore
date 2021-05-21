@@ -27,3 +27,4 @@ packaged.yaml
 
 # SAM
 .aws-sam/
+ssosync
