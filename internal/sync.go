@@ -400,7 +400,7 @@ func (s *syncGSuite) getFilteredGoogleUsers(groupsMembers map[string][]string) (
 				if len(user) >= 1 {
 					filteredUsers[m] = user[0]
 				} else {
-					log.withField("id", m).Warn("invalid user, could be nested group")
+					log.WithField("id", m).Warn("invalid user, could be nested group")
 				}
 			}
 		}
