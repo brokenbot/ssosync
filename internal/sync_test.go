@@ -21,13 +21,13 @@ import (
 )
 
 // toJSON return a json pretty of the stc
-func toJSON(stc interface{}) []byte {
+/* func toJSON(stc interface{}) []byte {
 	JSON, err := json.MarshalIndent(stc, "", "  ")
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
 	return JSON
-}
+}*/
 
 /*
 func Test_getGroupOperations(t *testing.T) {
