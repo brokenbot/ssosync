@@ -115,13 +115,11 @@ func (s *syncGSuite) Sync() (err error) {
 		return nil
 	}
 
-	newUsers, err := s.syncUsers(syncPlan["users"], awsUsers, googleUsers)
+	awsUsers, err = s.syncUsers(syncPlan["users"], awsUsers, googleUsers)
 	if err != nil {
 		return err
 	}
-	for user, awsUser := range newUsers {
-		awsUsers[user] = awsUser
-	}
+
 	err = s.syncGroups(syncPlan["groups"], awsUsers, awsGroups, googleGroups)
 	if err != nil {
 		return err
@@ -130,37 +128,38 @@ func (s *syncGSuite) Sync() (err error) {
 	return nil
 }
 
-func (s *syncGSuite) syncUsers(userPlan [][]string, awsUsers map[string]*aws.User, googleUsers map[string]*admin.User) (newUsers map[string]*aws.User, err error) {
+func (s *syncGSuite) syncUsers(userPlan [][]string, awsUsers map[string]*aws.User, googleUsers map[string]*admin.User) (map[string]*aws.User, error) {
 
 	log.Info("executing user plan")
 
-	newUsers = make(map[string]*aws.User)
-
 	for _, cmd := range userPlan {
-		if cmd[0] == "create" {
-			log.WithField("user", cmd[1]).Info("adding user")
-			gUser := googleUsers[cmd[1]]
-			awsUser := aws.NewUser(gUser.Name.GivenName, gUser.Name.FamilyName, cmd[1], !gUser.Suspended)
-			_, err := s.aws.CreateUser(awsUser)
+		action := cmd[0]
+		userEmail := cmd[1]
+		if action == "create" {
+			log.WithField("user", userEmail).Info("adding user")
+			gUser := googleUsers[userEmail]
+			newUser := aws.NewUser(gUser.Name.GivenName, gUser.Name.FamilyName, userEmail, !gUser.Suspended)
+			awsUser, err := s.aws.CreateUser(newUser)
 			if err != nil {
 				return nil, err
 			}
-			newUsers[cmd[1]] = awsUser
+			awsUsers[userEmail] = awsUser
 			continue
 		}
-		if cmd[0] == "delete" {
-			log.WithField("user", cmd[1]).Warn("deleting user")
-			awsUser := awsUsers[cmd[1]]
+		if action == "delete" {
+			log.WithField("user", userEmail).Warn("deleting user")
+			awsUser := awsUsers[userEmail]
 			err := s.aws.DeleteUser(awsUser)
 			if err != nil {
 				return nil, err
 			}
+			delete(awsUsers, userEmail)
 			continue
 		}
 
 	}
 
-	return newUsers, nil
+	return awsUsers, nil
 }
 
 func (s *syncGSuite) syncGroups(groupPlan [][]string, awsUsers map[string]*aws.User, awsGroups map[string]*aws.Group, googleGroups map[string][]string) (err error) {
