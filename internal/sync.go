@@ -467,7 +467,10 @@ func DoSync(ctx context.Context, cfg *config.Config) error {
 
 	c := New(cfg, awsClient, googleClient)
 
-	c.Sync()
+	err = c.Sync()
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
