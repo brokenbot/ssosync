@@ -327,7 +327,7 @@ func (s *syncGSuite) getUserChanges(awsUsers map[string]*aws.User, googleUsers m
 	for u := range googleUsers {
 		if _, in := awsUsers[u]; !in {
 			// check to make sure user wasn't missed during the call getUsers() due to 50 user limit
-			awsUser, err := s.aws.GetUser(u)
+			awsUser, err := s.aws.FindUserByEmail(u)
 			if awsUser != nil {
 				awsUsers[u] = awsUser
 				continue

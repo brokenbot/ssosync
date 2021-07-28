@@ -58,7 +58,6 @@ type Client interface {
 	FindUserByEmail(string) (*User, error)
 	FindUserByID(string) (*User, error)
 	GetUsers() ([]*User, error)
-	GetUser(string) (*User, error)
 	GetGroupMembers(*Group) ([]*User, error)
 	IsUserInGroup(*User, *Group) (bool, error)
 	GetGroups() ([]*Group, error)
@@ -568,30 +567,4 @@ func (c *client) GetUsers() ([]*User, error) {
 	}
 
 	return usrs, nil
-}
-
-func (c *client) GetUser(userName string) (*User, error) {
-	startURL, err := url.Parse(c.endpointURL.String())
-	if err != nil {
-		return nil, err
-	}
-
-	startURL.Path = path.Join(startURL.Path, "/Users?filter=UserName eq \""+userName+"\"")
-
-	resp, err := c.sendRequest(http.MethodGet, startURL.String())
-	if err != nil {
-		return nil, err
-	}
-
-	var r UserFilterResults
-	err = json.Unmarshal(resp, &r)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(r.Resources) < 1 {
-		return nil, ErrUserNotFound
-	}
-
-	return &r.Resources[0], nil
 }
