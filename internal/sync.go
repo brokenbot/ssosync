@@ -141,7 +141,7 @@ func (s *syncGSuite) syncUsers(userPlan [][]string, awsUsers map[string]*aws.Use
 			newUser := aws.NewUser(gUser.Name.GivenName, gUser.Name.FamilyName, userEmail, !gUser.Suspended)
 			awsUser, err := s.aws.CreateUser(newUser)
 			if err != nil {
-				log.WithField("user", userEmail).Error("failed to add user: ", userEmail)
+				return nil, err
 			}
 			awsUsers[userEmail] = awsUser
 			continue
@@ -326,6 +326,12 @@ func (s *syncGSuite) getUserChanges(awsUsers map[string]*aws.User, googleUsers m
 
 	for u := range googleUsers {
 		if _, in := awsUsers[u]; !in {
+			// check to make sure user wasn't missed during the call getUsers() due to 50 user limit
+			awsUser, _ := s.aws.GetUser(u)
+			if awsUser != nil {
+				awsUsers[u] = awsUser
+				continue
+			}
 			userPlan = append(userPlan, []string{"create", u})
 		}
 	}
