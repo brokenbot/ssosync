@@ -141,7 +141,7 @@ func (s *syncGSuite) syncUsers(userPlan [][]string, awsUsers map[string]*aws.Use
 			newUser := aws.NewUser(gUser.Name.GivenName, gUser.Name.FamilyName, userEmail, !gUser.Suspended)
 			awsUser, err := s.aws.CreateUser(newUser)
 			if err != nil {
-				return nil, err
+				log.WithField("user", userEmail).Error("failed to add user: ", userEmail)
 			}
 			awsUsers[userEmail] = awsUser
 			continue
@@ -499,7 +499,7 @@ func (s *syncGSuite) ignoreUser(name string) bool {
 	return false
 }
 
-func inList (value string, list []string) bool {
+func inList(value string, list []string) bool {
 	for _, i := range list {
 		if i == value {
 			return true
